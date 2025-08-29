@@ -167,8 +167,8 @@ def correct_outliers(dfs_dict, method='rolling_zscore', window_size=24, z_thresh
     
     PHYSICAL_LIMITS = {
         'temp':         {'min': -50,  'max': 60,   'name': 'Temperatura (°C)'},
-        'humidity':     {'min': 0,    'max': 100,  'name': 'Humedad Relativa (%)'},
-        'radiation':    {'min': 0,    'max': 2.0,  'name': 'Radiación Solar (kW/m²)'},
+        'humidity':     {'min': 0,    'max': 200,  'name': 'Humedad Relativa (%)'},
+        'radiation':    {'min': 0,    'max': 4.0,  'name': 'Radiación Solar (kW/m²)'},
         'precipitation':{'min': 0,    'max': 300,  'name': 'Precipitación (mm/h)'},
         'pressure':     {'min': 600,  'max': 820,  'name': 'Presión Atmosférica (mm Hg)'},
         'wind_speed':   {'min': 0,    'max': 250,  'name': 'Velocidad del Viento (km/h)'},
