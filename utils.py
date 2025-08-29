@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
+from sklearn.impute import KNNImputer
 
 def create_variable_boxplot(variable_index, df_list, figsize=(15, 8)):
     """
@@ -155,290 +156,141 @@ def create_correlation_heatmap(variable_index, df_list,figsize=(12, 10)):
     print(f"Correlaciones > 0.8: {np.sum(correlations > 0.8)} de {len(correlations)} pares")
     print(f"Correlaciones < 0.5: {np.sum(correlations < 0.5)} de {len(correlations)} pares")
 
-def generate_correction_report(correction_summary, dfs_original, dfs_corrected):
+def correct_outliers(dfs_dict, method='rolling_zscore', window_size=24, z_threshold=5, verbose=True):
     """
-    Genera un reporte detallado de las correcciones realizadas
-    """
-    print("\n" + "="*80)
-    print("REPORTE DETALLADO DE CORRECCIONES")
-    print("="*80)
-    
-    total_corrections = 0
-    stations_with_corrections = 0
-    
-    for station_name, corrections in correction_summary.items():
-        if corrections:  # Si hay correcciones en esta estación
-            stations_with_corrections += 1
-            station_total = sum([corr['negative_count'] for corr in corrections.values()])
-            total_corrections += station_total
-            
-            print(f"\n📍 ESTACIÓN: {station_name}")
-            print(f"   Total de valores corregidos: {station_total}")
-            print("   Variables afectadas:")
-            
-            for var_name, corr_info in corrections.items():
-                print(f"     • {var_name}:")
-                print(f"       - Valores negativos: {corr_info['negative_count']}")
-                print(f"       - Rango original: [{corr_info['original_min']:.3f}, {corr_info['original_max']:.3f}]")
-                print(f"       - Rango corregido: [{corr_info['corrected_min']:.3f}, {corr_info['corrected_max']:.3f}]")
-        else:
-            print(f"\n✅ ESTACIÓN: {station_name} - Sin valores negativos")
-    
-    print(f"\n" + "="*80)
-    print("RESUMEN GENERAL:")
-    print(f"• Total de estaciones procesadas: {len(correction_summary)}")
-    print(f"• Estaciones con correcciones: {stations_with_corrections}")
-    print(f"• Total de valores negativos corregidos: {total_corrections}")
-    print("="*80)
-
-def validate_corrections(dfs_original, dfs_corrected):
-    """
-    Valida que las correcciones se realizaron correctamente
-    """
-    print("\n🔍 VALIDACIÓN DE CORRECCIONES:")
-    print("-" * 40)
-    
-    for station_name in dfs_original.keys():
-        df_orig = dfs_original[station_name]
-        df_corr = dfs_corrected[station_name]
-        
-        # Verificar que no haya valores negativos en datos corregidos
-        negative_remaining = 0
-        for col_idx in range(1, len(df_corr.columns)):
-            negative_remaining += (df_corr.iloc[:, col_idx] < 0).sum()
-        
-        if negative_remaining == 0:
-            print(f"✅ {station_name}: Todos los valores negativos fueron corregidos")
-        else:
-            print(f"❌ {station_name}: Aún quedan {negative_remaining} valores negativos")
-
-def correct_outliers(dfs_dict, method='rolling_zscore', window_size=24, z_threshold=3.5, verbose=True):
-    """
-    Corrige outliers usando límites físicos realistas y detección por z-score móvil.
-    
-    Parameters:
-    dfs_dict (dict): Diccionario con DataFrames de estaciones
-    method (str): Método de detección ('rolling_zscore', 'static_zscore', 'hybrid')
-    window_size (int): Tamaño de ventana para z-score móvil
-    z_threshold (float): Umbral de z-score para considerar outlier
-    verbose (bool): Si mostrar información detallada del proceso
-    
-    Returns:
-    dict: Diccionario con DataFrames corregidos
-    dict: Resumen de correcciones realizadas
+    Corrige outliers en series temporales de contaminantes y variables meteorológicas.
+    - Detecta outliers físicos y estadísticos.
+    - Sustituye con interpolación si son pocos consecutivos.
+    - Si hay >3 consecutivos, usa KNNImputer.
+    - Devuelve resumen con detalle físico/estadístico.
     """
     
-    # Límites físicos realistas para variables ambientales
     PHYSICAL_LIMITS = {
-        'temp': {'min': -50, 'max': 60, 'name': 'Temperatura'},  # °C
-        'humidity': {'min': 0, 'max': 200, 'name': 'Humedad'},  # % (hasta 200% por sobresaturación)
-        'pressure': {'min': 600, 'max': 800, 'name': 'Presión Atmosférica'},  # mmHg
-        'wind_speed': {'min': 0, 'max': 200, 'name': 'Velocidad del Viento'},  # km/h
-        'wind_dir': {'min': 0, 'max': 360, 'name': 'Dirección del Viento'},  # grados
-        'radiation': {'min': 0, 'max': 1500, 'name': 'Radiación Solar'},  # KW/m²
-        'precipitation': {'min': 0, 'max': 500, 'name': 'Precipitación'},  # mm/hr
-        'co': {'min': 0, 'max': 100, 'name': 'Monóxido de Carbono'},  # ppm
-        'no2': {'min': 0, 'max': 10, 'name': 'Dióxido de Nitrógeno'},  # ppm
-        'so2': {'min': 0, 'max': 10, 'name': 'Dióxido de Azufre'},  # ppm
-        'o3': {'min': 0, 'max': 2, 'name': 'Ozono'},  # ppm
-        'pm25': {'min': 0, 'max': 2000, 'name': 'PM2.5'},  # μg/m³
-        'pm10': {'min': 0, 'max': 3000, 'name': 'PM10'},  # μg/m³
-        'nox': {'min': 0, 'max': 15, 'name': 'Óxidos de Nitrógeno'},  # ppm
-        'contaminant': {'min': 0, 'max': 5000, 'name': 'Contaminante General'}  # μg/m³
+        'temp':         {'min': -50,  'max': 60,   'name': 'Temperatura (°C)'},
+        'humidity':     {'min': 0,    'max': 100,  'name': 'Humedad Relativa (%)'},
+        'radiation':    {'min': 0,    'max': 2.0,  'name': 'Radiación Solar (kW/m²)'},
+        'precipitation':{'min': 0,    'max': 300,  'name': 'Precipitación (mm/h)'},
+        'pressure':     {'min': 600,  'max': 820,  'name': 'Presión Atmosférica (mm Hg)'},
+        'wind_speed':   {'min': 0,    'max': 250,  'name': 'Velocidad del Viento (km/h)'},
+        'wind_dir':     {'min': 0,    'max': 360,  'name': 'Dirección del Viento (°)'},
+        'pm10':         {'min': 0, 'max': 10000, 'name': 'PM10 (µg/m³)'},
+        'pm25':         {'min': 0, 'max': 5000,  'name': 'PM2.5 (µg/m³)'},
+        'o3':           {'min': 0, 'max': 5000,  'name': 'Ozono (ppb)'},
+        'so2':          {'min': 0, 'max': 5000,  'name': 'Dióxido de Azufre (ppb)'},
+        'no2':          {'min': 0, 'max': 50000, 'name': 'Dióxido de Nitrógeno (ppb)'},
+        'no':           {'min': 0, 'max': 50000, 'name': 'Monóxido de Nitrógeno (ppb)'},
+        'nox':          {'min': 0, 'max': 100000,'name': 'Óxidos de Nitrógeno (ppb)'},
+        'co':           {'min': 0, 'max': 200,   'name': 'Monóxido de Carbono (ppm)'}, 
     }
-    
-    def identify_variable_type(column_name):
-        """Identifica el tipo de variable basado en el nombre"""
-        col_lower = column_name.lower()
-        
-        if 'temp' in col_lower or 'degc' in col_lower:
-            return 'temp'
-        elif 'humid' in col_lower or 'rh' in col_lower:
-            return 'humidity'
-        elif 'press' in col_lower or 'mmhg' in col_lower:
-            return 'pressure'
-        elif 'wind' in col_lower and ('speed' in col_lower or 'vel' in col_lower or 'kmph' in col_lower):
-            return 'wind_speed'
-        elif 'wind' in col_lower and ('dir' in col_lower or 'deg' in col_lower):
-            return 'wind_dir'
-        elif 'solar' in col_lower or 'radiation' in col_lower or 'kw/m2' in col_lower:
-            return 'radiation'
-        elif 'precip' in col_lower or 'rain' in col_lower or 'mm/hr' in col_lower:
-            return 'precipitation'
-        elif 'co ' in col_lower or col_lower.endswith('co') or 'carbon monoxide' in col_lower:
-            return 'co'
-        elif 'no2' in col_lower or 'nitrogen dioxide' in col_lower:
-            return 'no2'
-        elif 'so2' in col_lower or 'sulfur dioxide' in col_lower:
-            return 'so2'
-        elif 'o3' in col_lower or 'ozone' in col_lower:
-            return 'o3'
-        elif 'pm2.5' in col_lower or 'pm25' in col_lower:
-            return 'pm25'
-        elif 'pm10' in col_lower:
-            return 'pm10'
-        elif 'nox' in col_lower:
-            return 'nox'
-        elif any(x in col_lower for x in ['ppm', 'ppb', 'ug/m3', 'contam']):
-            return 'contaminant'
-        else:
-            return 'contaminant'  # Default para concentraciones
-    
+
+    COLUMN_INDEX_TO_TYPE = {
+        1: 'co', 2: 'no', 3: 'no2', 4: 'nox', 5: 'o3', 6: 'pm10', 7: 'pm25', 8: 'pressure',
+        9: 'precipitation', 10: 'humidity', 11: 'so2', 12: 'radiation', 13: 'temp',
+        14: 'wind_speed', 15: 'wind_dir'
+    }
+
     def rolling_zscore_outliers(data, window=window_size, threshold=z_threshold):
-        """Detecta outliers usando z-score móvil"""
-        if len(data) < window:
-            window = max(3, len(data) // 2)
-        
-        # Calcular media y desviación estándar móviles
+        if len(data) < window: window = max(3, len(data) // 2)
         rolling_mean = data.rolling(window=window, center=True, min_periods=1).mean()
         rolling_std = data.rolling(window=window, center=True, min_periods=1).std()
-        
-        # Calcular z-scores
         z_scores = np.abs((data - rolling_mean) / rolling_std)
-        
-        # Identificar outliers
-        outliers = z_scores > threshold
-        return outliers.fillna(False)
-    
+        return z_scores > threshold
+
     def apply_physical_limits(data, var_type):
-        """Aplica límites físicos y marca violaciones"""
         if var_type not in PHYSICAL_LIMITS:
-            return pd.Series([False] * len(data), index=data.index)
-        
+            return pd.Series(False, index=data.index)
         limits = PHYSICAL_LIMITS[var_type]
-        violations = (data < limits['min']) | (data > limits['max'])
-        return violations
-    
-    def correct_outlier_value(data, outlier_idx, correction_method='interpolation'):
-        """Corrige un valor outlier específico"""
-        if correction_method == 'interpolation':
-            # Interpolación lineal
-            data_copy = data.copy()
-            data_copy.iloc[outlier_idx] = np.nan
-            interpolated = data_copy.interpolate(method='linear')
-            if pd.isna(interpolated.iloc[outlier_idx]):
-                # Si interpolación falla, usar mediana local
-                window_data = data.iloc[max(0, outlier_idx-12):outlier_idx+13]
-                return window_data.median() if not window_data.empty else data.median()
-            return interpolated.iloc[outlier_idx]
-        
-        elif correction_method == 'median':
-            # Mediana de ventana local
-            window_data = data.iloc[max(0, outlier_idx-12):outlier_idx+13]
-            return window_data.median() if not window_data.empty else data.median()
-        
-        elif correction_method == 'clipping':
-            # Clip a percentiles
-            p5, p95 = data.quantile([0.05, 0.95])
-            return max(p5, min(p95, data.iloc[outlier_idx]))
-    
+        return (data < limits['min']) | (data > limits['max'])
+
     corrected_dfs = {}
     correction_summary = {}
     
-    print("🔧 CORRECCIÓN INTELIGENTE DE OUTLIERS")
-    print("=" * 60)
-    print(f"Método: {method} | Ventana: {window_size} | Umbral Z: {z_threshold}")
-    print("=" * 60)
+    if verbose:
+        print("🔧 CORRECCIÓN DE OUTLIERS (Interpolación + KNN para >3)")
+        print(f"Método: {method} | Ventana: {window_size} | Umbral Z: {z_threshold}\n" + "="*60)
+    
+    total_corrections = 0
     
     for station_name, df in dfs_dict.items():
-        print(f"\n🏭 Procesando estación: {station_name}")
-        print("-" * 50)
-        
+        if verbose:
+            print(f"\n🏭 Procesando estación: {station_name}")
         df_corrected = df.copy()
         station_corrections = {}
+        station_total_corrections = 0
         
-        # Procesar cada variable (excluyendo Date)
         for col_idx in range(1, len(df.columns)):
             col_name = df.columns[col_idx]
-            variable_data = df_corrected.iloc[:, col_idx].copy()
+            var_type = COLUMN_INDEX_TO_TYPE.get(col_idx)
             
-            if variable_data.isna().all():
+            if not var_type:
                 continue
-                
-            # Identificar tipo de variable
-            var_type = identify_variable_type(col_name)
+
+            original_series = df.iloc[:, col_idx].copy()
+            working_series = original_series.copy()
             
-            # Detectar outliers por límites físicos
-            physical_outliers = apply_physical_limits(variable_data, var_type)
+            if working_series.isna().all():
+                continue
             
-            # Detectar outliers por z-score móvil
-            if method in ['rolling_zscore', 'hybrid']:
-                statistical_outliers = rolling_zscore_outliers(variable_data, window_size, z_threshold)
-            else:
-                # Z-score estático como respaldo
-                z_scores = np.abs(stats.zscore(variable_data.dropna()))
-                statistical_outliers = pd.Series([False] * len(variable_data), index=variable_data.index)
-                statistical_outliers[variable_data.dropna().index] = z_scores > z_threshold
+            # --- 1. Outliers físicos ---
+            physical_outliers = apply_physical_limits(working_series, var_type)
+            num_physical = int(physical_outliers.sum())
+            working_series[physical_outliers] = np.nan
             
-            # Combinar detecciones
-            if method == 'rolling_zscore':
-                final_outliers = physical_outliers | statistical_outliers
-            elif method == 'hybrid':
-                final_outliers = physical_outliers | statistical_outliers
-            else:
-                final_outliers = physical_outliers | statistical_outliers
-            
-            outlier_count = final_outliers.sum()
+            # --- 2. Outliers estadísticos ---
+            statistical_outliers = rolling_zscore_outliers(working_series, window_size, z_threshold)
+            num_statistical = int(statistical_outliers.sum())
+            working_series[statistical_outliers] = np.nan
+
+            # --- 3. Interpolación inicial ---
+            interpolated = working_series.interpolate(method='linear', limit_direction='both')
+
+            # --- 4. KNN en bloques largos ---
+            na_mask = interpolated.isna()
+            used_knn = False
+            if na_mask.any():
+                runs = (na_mask != na_mask.shift()).cumsum()
+                run_lengths = na_mask.groupby(runs).transform('sum')
+                long_blocks = (na_mask) & (run_lengths > 3)
+
+                if long_blocks.any():
+                    used_knn = True
+                    imputer = KNNImputer(n_neighbors=3)
+                    arr = interpolated.values.reshape(-1, 1)
+                    arr_imputed = imputer.fit_transform(arr)
+                    interpolated = pd.Series(arr_imputed.ravel(), index=interpolated.index)
+
+            # --- 5. Guardar resultado ---
+            df_corrected.iloc[:, col_idx] = interpolated
+            final_outliers_mask = working_series.isna()
+            outlier_count = int(final_outliers_mask.sum())
             
             if outlier_count > 0:
-                if verbose:
-                    print(f"  📊 Variable {col_idx} ({col_name}) - Tipo: {var_type}")
-                    print(f"      → {outlier_count} outliers detectados ({outlier_count/len(variable_data)*100:.1f}%)")
-                    if var_type in PHYSICAL_LIMITS:
-                        limits = PHYSICAL_LIMITS[var_type]
-                        print(f"      → Límites físicos: [{limits['min']}, {limits['max']}]")
-                    print(f"      → Físicos: {physical_outliers.sum()}, Estadísticos: {statistical_outliers.sum()}")
-                
-                # Guardar valores originales
-                original_outliers = variable_data[final_outliers]
-                
-                # Corregir outliers
-                corrected_values = []
-                for idx in variable_data[final_outliers].index:
-                    pos = variable_data.index.get_loc(idx)
-                    
-                    # Decidir método de corrección
-                    if physical_outliers[idx]:
-                        # Violaciones físicas: usar clipping a límites físicos
-                        if var_type in PHYSICAL_LIMITS:
-                            limits = PHYSICAL_LIMITS[var_type]
-                            corrected_val = max(limits['min'], min(limits['max'], variable_data[idx]))
-                            df_corrected.iloc[pos, col_idx] = corrected_val
-                            corrected_values.append(corrected_val)
-                        else:
-                            corrected_val = correct_outlier_value(variable_data, pos, 'interpolation')
-                            df_corrected.iloc[pos, col_idx] = corrected_val
-                            corrected_values.append(corrected_val)
-                    else:
-                        # Outliers estadísticos: usar interpolación
-                        corrected_val = correct_outlier_value(variable_data, pos, 'interpolation')
-                        df_corrected.iloc[pos, col_idx] = corrected_val
-                        corrected_values.append(corrected_val)
-                
-                corrected_values = np.array(corrected_values)
-                
-                # Guardar estadísticas
-                station_corrections[col_name] = {
-                    'outlier_count': outlier_count,
-                    'outlier_percentage': outlier_count/len(variable_data)*100,
-                    'physical_outliers': physical_outliers.sum(),
-                    'statistical_outliers': statistical_outliers.sum(),
-                    'original_min': original_outliers.min(),
-                    'original_max': original_outliers.max(),
-                    'corrected_min': corrected_values.min(),
-                    'corrected_max': corrected_values.max(),
-                    'variable_type': var_type
-                }
-                
-                if verbose:
-                    print(f"      → Corregidos: rango [{corrected_values.min():.2f}, {corrected_values.max():.2f}]")
-            
-            else:
-                if verbose:
-                    print(f"  ✅ Variable {col_idx} ({col_name}): Sin outliers")
+                station_total_corrections += outlier_count
+                total_corrections += outlier_count
+
+            station_corrections[col_name] = {
+                'outlier_count': outlier_count,
+                'outlier_percentage': outlier_count / len(original_series) * 100 if len(original_series) > 0 else 0,
+                'physical_outliers': num_physical,
+                'statistical_outliers': num_statistical,
+                'original_min': working_series.min(),
+                'original_max': working_series.max(),
+                'corrected_min': interpolated.min(),
+                'corrected_max': interpolated.max(),
+                'variable_type': var_type,
+                'method_used': 'KNN' if used_knn else 'Interpolation'
+            }
+        
+        if verbose and station_total_corrections > 0:
+            print(f"  ✅ {station_total_corrections} outliers corregidos en total")
+        elif verbose:
+            print(f"  ✨ Sin outliers detectados")
         
         corrected_dfs[station_name] = df_corrected
         correction_summary[station_name] = station_corrections
+    
+    if verbose:
+        print(f"\n🎯 CORRECCIÓN COMPLETADA: {total_corrections} outliers corregidos en total")
     
     return corrected_dfs, correction_summary
 
@@ -447,34 +299,35 @@ def generate_correction_report(correction_summary, dfs_original, dfs_corrected):
     Genera un reporte detallado de las correcciones realizadas
     """
     print("\n" + "="*80)
-    print("REPORTE DETALLADO DE CORRECCIONES")
+    print("📋 REPORTE DETALLADO DE CORRECCIONES")
     print("="*80)
     
     total_corrections = 0
     stations_with_corrections = 0
     
     for station_name, corrections in correction_summary.items():
-        if corrections:  # Si hay correcciones en esta estación
-            stations_with_corrections += 1
-            station_total = sum([corr['outlier_count'] for corr in corrections.values()])
-            total_corrections += station_total
-            
-            print(f"\n📍 ESTACIÓN: {station_name}")
-            print(f"   Total de valores corregidos: {station_total}")
-            print("   Variables afectadas:")
-            
-            for var_name, corr_info in corrections.items():
-                print(f"     • {var_name} ({corr_info['variable_type']}):")
-                print(f"       - Outliers: {corr_info['outlier_count']} ({corr_info['outlier_percentage']:.2f}%)")
-                print(f"       - Físicos: {corr_info['physical_outliers']}, Estadísticos: {corr_info['statistical_outliers']}")
-                print(f"       - Rango original: [{corr_info['original_min']:.3f}, {corr_info['original_max']:.3f}]")
-                print(f"       - Rango corregido: [{corr_info['corrected_min']:.3f}, {corr_info['corrected_max']:.3f}]")
-        else:
-            print(f"\n✅ ESTACIÓN: {station_name} - Sin outliers detectados")
+        if corrections:
+            station_total = sum(corr.get('outlier_count', 0) for corr in corrections.values())
+            if station_total > 0:
+                stations_with_corrections += 1
+                total_corrections += station_total
+                
+                print(f"\n📍 {station_name}: {station_total} outliers corregidos")
+                
+                # Mostrar solo las variables con correcciones significativas
+                for var_name, corr_info in corrections.items():
+                    outlier_count = corr_info.get('outlier_count', 0)
+                    if outlier_count > 0:
+                        physical = corr_info.get('physical_outliers', 0)
+                        statistical = corr_info.get('statistical_outliers', 0)
+                        print(f"   • {var_name}: {outlier_count} outliers ({physical}F, {statistical}E)")
+    
+    if stations_with_corrections == 0:
+        print("\n✨ No se detectaron outliers en ninguna estación")
     
     print(f"\n" + "="*80)
-    print("RESUMEN GENERAL:")
-    print(f"• Total de estaciones procesadas: {len(correction_summary)}")
+    print("📊 RESUMEN GENERAL:")
+    print(f"• Estaciones procesadas: {len(correction_summary)}")
     print(f"• Estaciones con correcciones: {stations_with_corrections}")
     print(f"• Total de outliers corregidos: {total_corrections}")
     print("="*80)
@@ -484,7 +337,10 @@ def validate_corrections(dfs_original, dfs_corrected):
     Valida que las correcciones se realizaron correctamente
     """
     print("\n🔍 VALIDACIÓN DE CORRECCIONES:")
-    print("-" * 40)
+    print("-" * 50)
+    
+    stations_with_changes = 0
+    total_extreme_remaining = 0
     
     for station_name in dfs_original.keys():
         df_orig = dfs_original[station_name]
@@ -504,14 +360,25 @@ def validate_corrections(dfs_original, dfs_corrected):
                 changes_detected = True
             
             # Verificar valores extremos restantes (muy básico)
-            if not corr_data.empty:
+            if not corr_data.empty and pd.api.types.is_numeric_dtype(corr_data):
                 q99 = corr_data.quantile(0.99)
                 q01 = corr_data.quantile(0.01)
-                extreme_remaining = ((corr_data > q99 * 3) | (corr_data < q01 * 3)).sum()
-                extreme_values_remaining += extreme_remaining
+                if pd.notna(q99) and pd.notna(q01):
+                    extreme_remaining = ((corr_data > q99 * 3) | (corr_data < q01 * 3)).sum()
+                    extreme_values_remaining += extreme_remaining
         
-        status = "✅" if changes_detected else "ℹ️"
-        print(f"{status} {station_name}: Outliers procesados, {extreme_values_remaining} valores extremos restantes")
+        if changes_detected:
+            stations_with_changes += 1
+        
+        total_extreme_remaining += extreme_values_remaining
+        
+        status = "✅ Procesado" if changes_detected else "ℹ️  Sin cambios"
+        print(f"{status} {station_name}")
+    
+    print("-" * 50)
+    print(f"📊 Estaciones con cambios: {stations_with_changes}/{len(dfs_original)}")
+    print(f"⚠️  Valores extremos restantes: {total_extreme_remaining}")
+    print("-" * 50)
 
 def compare_datasets_statistics(dfs_original, dfs_corrected, variable_index):
     """
@@ -740,10 +607,3 @@ def create_compact_histogram(variable_index, df_list, figsize=(16, 12)):
         print(f"  {row['Station']}: p={row['P-value']:.4f}, Asimetría={row['Skewness']:.3f}, Curtosis={row['Kurtosis']:.3f}")
     
     return results_df
-
-
-
-
-
-
-
