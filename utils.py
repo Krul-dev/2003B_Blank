@@ -607,3 +607,266 @@ def create_compact_histogram(variable_index, df_list, figsize=(16, 12)):
         print(f"  {row['Station']}: p={row['P-value']:.4f}, Asimetría={row['Skewness']:.3f}, Curtosis={row['Kurtosis']:.3f}")
     
     return results_df
+
+def plot_polar_stations(dfs_estaciones_clean, contaminant_idx, wind_dir_idx,
+                        contaminant_name="Contaminante", max_stations=15, nrows=3, ncols=5,
+                        cmap="Reds"):
+    """
+    Genera un grid de subplots polares (rosa de contaminación) mostrando la relación entre
+    un contaminante y la dirección del viento para múltiples estaciones.
+    
+    Parámetros:
+    -----------
+    dfs_estaciones_clean : dict
+        Diccionario {nombre_estacion: DataFrame}.
+    contaminant_idx : int
+        Índice de la columna del contaminante en el DataFrame.
+    wind_dir_idx : int
+        Índice de la columna de dirección del viento en el DataFrame.
+    contaminant_name : str
+        Nombre descriptivo del contaminante (ej. "PM2.5").
+    max_stations : int
+        Número máximo de estaciones a mostrar (ej. 15).
+    nrows, ncols : int
+        Dimensiones del grid de subplots.
+    cmap : str
+        Colormap para el scatter.
+    
+    Retorna:
+    --------
+    results_df : pd.DataFrame
+        Resumen con correlaciones u/v por estación.
+    """
+
+    print("🌪️" * 25)
+    print(f"ANÁLISIS DE CORRELACIÓN: {contaminant_name} vs DIRECCIÓN DEL VIENTO")
+    print("🌪️" * 25)
+    print(f"Analizando la relación entre concentraciones de {contaminant_name} y la dirección del viento")
+    print("=" * 80)
+
+    # Crear figura
+    fig, axes = plt.subplots(nrows, ncols, figsize=(20, 12), subplot_kw={'projection': 'polar'})
+    axes = axes.flatten()
+
+    correlation_results = []
+
+    for i, (station_name, df_station) in enumerate(dfs_estaciones_clean.items()):
+        if i >= max_stations:
+            break
+        
+        ax = axes[i]
+        
+        contaminant_data = df_station.iloc[:, contaminant_idx]
+        wind_dir_data = df_station.iloc[:, wind_dir_idx]
+        
+        # Eliminar NaN
+        mask = ~(pd.isna(contaminant_data) | pd.isna(wind_dir_data))
+        contaminant_clean = contaminant_data[mask]
+        wind_dir_clean = wind_dir_data[mask]
+        
+        if len(contaminant_clean) > 0:
+            # Dirección en radianes
+            wind_rad = np.deg2rad(wind_dir_clean.values)
+            
+            # Componentes trigonométricas
+            u = np.cos(wind_rad)  # eje E-O
+            v = np.sin(wind_rad)  # eje N-S
+            
+            # Correlaciones
+            corr_u = np.corrcoef(contaminant_clean, u)[0, 1]
+            corr_v = np.corrcoef(contaminant_clean, v)[0, 1]
+            
+            # Scatter polar
+            sc = ax.scatter(wind_rad, contaminant_clean, alpha=0.6, s=15,
+                            c=contaminant_clean, cmap=cmap)
+            
+            ax.set_title(f"{station_name}\n r_u={corr_u:.2f}, r_v={corr_v:.2f}",
+                         fontsize=9, fontweight='bold')
+            ax.set_theta_zero_location("N")
+            ax.set_theta_direction(-1)
+            
+            correlation_results.append({
+                'Station': station_name,
+                f'Corr_{contaminant_name}_u': corr_u,
+                f'Corr_{contaminant_name}_v': corr_v,
+                'N_Points': len(contaminant_clean),
+                f'{contaminant_name}_Mean': contaminant_clean.mean()
+            })
+        else:
+            ax.text(0.5, 0.5, 'Sin datos\nsuficientes', ha='center', va='center', 
+                    transform=ax.transAxes, fontsize=10)
+            ax.set_title(f'{station_name}\n(Sin datos)', fontsize=10)
+
+    # Título general
+    plt.suptitle(f'Relación entre {contaminant_name} y Dirección del Viento (Rosa de Contaminación)\n(Datos Limpios)', 
+                 fontsize=16, fontweight='bold', y=0.95)
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.90)
+    plt.show()
+
+    # DataFrame de resultados
+    results_df = pd.DataFrame(correlation_results)
+    return results_df
+
+def analyze_wind_sectors(dfs_estaciones_clean, contaminant_idx, wind_dir_idx,
+                         contaminant_name="Contaminante", n_sectors=16, threshold_factor=2.0, 
+                         max_stations=15, nrows=3, ncols=5, plot=True):
+    """
+    Analiza sectores del viento que concentran valores inusualmente altos
+    de un contaminante para múltiples estaciones (rosa de contaminación).
+
+    Parámetros
+    ----------
+    dfs_estaciones_clean : dict
+        Diccionario {nombre_estacion: DataFrame}.
+    contaminant_idx : int
+        Índice de columna del contaminante en el DataFrame.
+    wind_dir_idx : int
+        Índice de columna de la dirección del viento (grados).
+    contaminant_name : str
+        Nombre descriptivo del contaminante (ej. "PM2.5").
+    n_sectors : int, opcional
+        Número de sectores (ej. 16 → sectores de 22.5°).
+    threshold_factor : float, opcional
+        Factor de comparación (ej. 2.0 → sector interesante si la media sectorial
+        es ≥ 2 × la media global).
+    max_stations : int
+        Número máximo de estaciones a mostrar (ej. 15).
+    nrows, ncols : int
+        Dimensiones del grid de subplots.
+    plot : bool, opcional
+        Si True, genera gráfico polar de la rosa de contaminación.
+
+    Retorna
+    -------
+    list : Lista de diccionarios con estadísticas por estación.
+    """
+
+    print("🌹" * 25)
+    print(f"ANÁLISIS DE SECTORES DE VIENTO: {contaminant_name}")
+    print("🌹" * 25)
+    print(f"Identificando sectores con concentraciones altas de {contaminant_name}")
+    print(f"Umbral: {threshold_factor}x la media global | Sectores: {n_sectors}")
+    print("=" * 80)
+
+    results = []
+
+    if plot:
+        # Crear figura con subplots polares
+        fig, axes = plt.subplots(nrows, ncols, figsize=(20, 12), subplot_kw={'projection': 'polar'})
+        axes = axes.flatten()
+
+    for i, (station_name, df_station) in enumerate(dfs_estaciones_clean.items()):
+        if i >= max_stations:
+            break
+
+        contaminant_col = df_station.columns[contaminant_idx]
+        wind_col = df_station.columns[wind_dir_idx]
+
+        # Extraer y limpiar datos
+        data = df_station[[contaminant_col, wind_col]].dropna()
+        
+        if data.empty:
+            result = {
+                "Station": station_name,
+                "Contaminant": contaminant_col,
+                "GlobalMean": np.nan,
+                "InterestingSectors": [],
+                "SectorMeans": {},
+                "N_Points": 0
+            }
+            results.append(result)
+            
+            if plot:
+                ax = axes[i]
+                ax.text(0.5, 0.5, 'Sin datos\nsuficientes', ha='center', va='center', 
+                        transform=ax.transAxes, fontsize=10)
+                ax.set_title(f'{station_name}\n(Sin datos)', fontsize=9)
+            continue
+
+        # Definir bins para sectores
+        bins = np.linspace(0, 360, n_sectors + 1)
+        sector_labels = [f"{int(bins[i])}°-{int(bins[i+1])}°" for i in range(n_sectors)]
+        data["Sector"] = pd.cut(data[wind_col] % 360, bins=bins, labels=sector_labels, include_lowest=True)
+
+        # Calcular medias por sector y media global
+        sector_means = data.groupby("Sector", observed = False)[contaminant_col].mean()
+        global_mean = data[contaminant_col].mean()
+
+        # Detectar sectores interesantes
+        interesting_sectors = sector_means[sector_means >= threshold_factor * global_mean].index.tolist()
+
+        # Guardar resultado
+        result = {
+            "Station": station_name,
+            "Contaminant": contaminant_col,
+            "GlobalMean": global_mean,
+            "InterestingSectors": interesting_sectors,
+            "SectorMeans": sector_means.to_dict(),
+            "N_Points": len(data)
+        }
+        results.append(result)
+
+        # Plot polar para esta estación
+        if plot:
+            ax = axes[i]
+            
+            # Preparar datos para el plot polar
+            theta = np.linspace(0, 2*np.pi, n_sectors, endpoint=False)
+            r = sector_means.values
+            
+            # Colores: rojo para sectores interesantes, azul para normales
+            colors = ["red" if label in interesting_sectors else "steelblue" 
+                     for label in sector_means.index]
+            
+            # Crear barras polares
+            bars = ax.bar(theta, r, width=2*np.pi/n_sectors, align='center', 
+                         alpha=0.7, color=colors)
+            
+            # Configurar ejes polares
+            ax.set_theta_zero_location("N")  # Norte arriba
+            ax.set_theta_direction(-1)       # Sentido horario
+            
+            # Título con información de sectores interesantes
+            n_interesting = len(interesting_sectors)
+            title = f"{station_name}\n{n_interesting} sectores críticos"
+            ax.set_title(title, fontsize=9, fontweight='bold')
+            
+            # Línea de referencia para el umbral
+            ax.axhline(y=threshold_factor * global_mean, color='red', 
+                      linestyle='--', alpha=0.5, linewidth=1)
+
+    if plot:
+        # Título general
+        plt.suptitle(f'Rosa de Sectores Críticos: {contaminant_name}\n'
+                     f'(Rojo: ≥{threshold_factor}x media global, Azul: normal)', 
+                     fontsize=16, fontweight='bold', y=0.95)
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.90)
+        plt.show()
+
+    # Mostrar resumen de sectores interesantes
+    interesting_stations = [r for r in results if len(r["InterestingSectors"]) > 0]
+    
+    print(f"\n🎯 RESUMEN DE ANÁLISIS:")
+    print("=" * 80)
+    print(f"Estaciones analizadas: {len(results)}")
+    print(f"Estaciones con sectores críticos: {len(interesting_stations)}")
+    
+    if interesting_stations:
+        print(f"\n🌟 ESTACIONES CON SECTORES CRÍTICOS (≥{threshold_factor}x media):")
+        print("-" * 60)
+        for station_data in interesting_stations:
+            sectors_str = ", ".join(station_data["InterestingSectors"])
+            print(f"📍 {station_data['Station']}: {sectors_str}")
+            print(f"   Media global: {station_data['GlobalMean']:.2f}")
+            for sector in station_data["InterestingSectors"]:
+                sector_mean = station_data["SectorMeans"][sector]
+                factor = sector_mean / station_data['GlobalMean']
+                print(f"   • {sector}: {sector_mean:.2f} ({factor:.1f}x media)")
+            print()
+    else:
+        print(f"\n✨ No se encontraron sectores críticos con el umbral {threshold_factor}x")
+        print("   Considera reducir el threshold_factor para detectar patrones más sutiles")
+
+    return results
