@@ -1,0 +1,47 @@
+
+# Descripción de los datos
+
+Para esta primera etapa, empezaremos por cargar las librerías que necesitamos y establecemos algunas opciones de configuración:
+```{r}
+#| output: false
+library(tidyverse)
+library(here)
+library(readxl)
+
+options(scipen = 999)
+```
+Ahora cargamos los datos que nos proporcionó el Socio Formador. Para los datos del 2025 tenemos:
+```{r}
+calidad_aire_2025_tbl <- read_excel(here("data", "BD 2025.xlsx")) |>
+  glimpse()
+```
+
+Para los datos del 2024 tenemos:
+```{r}
+calidad_aire_2024_tbl <- read_excel(here("data", "BD 2024.xlsx")) |>
+  glimpse()
+```
+
+Para los datos del 2023 tenemos:
+```{r}
+calidad_aire_2023_tbl <- read_excel(here("data", "BD 2023.xlsx")) |>
+  glimpse()
+```
+
+Para los datos del 2022 tenemos:
+```{r}
+calidad_aire_2022_tbl <- read_excel(here("data", "BD 2022.xlsx")) |>
+  glimpse()
+```
+
+Para los datos del 2021 tenemos:
+```{r}
+calidad_aire_2021_tbl <- read_excel(here("data", "BD 2021.xlsx")) |>
+  glimpse()
+```
+
+Finalmente, para los datos del 2024 tenemos:
+```{r}
+calidad_aire_2020_tbl <- read_excel(here("data", "BD 2020.xlsx")) |>
+  glimpse()
+```

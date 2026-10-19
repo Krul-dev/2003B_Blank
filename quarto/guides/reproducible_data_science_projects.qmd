@@ -2,12 +2,8 @@
 title: "Reproducible Data Science Projects"
 subtitle: "A Practical Guide"
 format:
-  html:
-    toc: true
-    toc-depth: 3
-    number-sections: true
-    code-fold: true
   pdf:
+    pdf-engine: lualatex
     toc: true
     number-sections: true
 execute:

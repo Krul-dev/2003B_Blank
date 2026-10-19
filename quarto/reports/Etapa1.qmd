@@ -1,33 +1,70 @@
 ---
-title: "Reporte de la Situación Problema"
-author: "Equpo x"
-date: today
+lang: es
 format:
-  docx:
-    toc: true          # Include table of contents
-    toc-depth: 3       # Levels in TOC
+   pdf:
+     documentclass: article
+     classoption: [twoside]
+     fontsize: 11pt
+     pdf-engine: pdflatex
+     number-sections: true
+     include-in-header:
+       - "_header.tex"
 ---
 
-# Etapa 1. Conociendo el negocio
+\pagenumbering{gobble}
 
-Para esta primera etapa, empezaremos por cargar las librerías que necesitamos y establecemos algunas opciones de configuración:
-```{r}
-#| output: false
-library(tidyverse)
-library(here)
-library(readxl)
+\thispagestyle{empty}
 
-options(scipen = 999)
-```
-Ahora cargamos los datos que nos proporcionó el Socio Formador. Para los datos del 2024 tenemos:
-```{r}
-calidad_aire_2024_tbl <- read_excel(here("data", "BD 2024.xlsx")) %>%
-  glimpse()
-```
-Para los datos del 2025 tenemos:
-```{r}
-calidad_aire_2025_tbl <- read_excel(here("data", "BD 2025.xlsx")) %>%
-  glimpse()
-```
+\begin{center}
+\vspace*{-3.8cm}
+\hspace*{-1.3cm}
+\includegraphics[height=5cm]{tecnologico-de-monterrey-blue}
+\vspace*{0.5cm}
+
+\vspace{1.5cm}
+
+\Huge \textbf{Nombre del Proyecto} \par
+\vspace{0.5cm}
 
 
+\Large \textbf{Etapa 1: Conociendo el negocio} \par
+
+\vspace{4cm}
+
+
+
+\LARGE \textbf{Equipo 1} \par
+
+\vspace{0.5cm}
+
+\large 
+
+\begin{tabular}{rl}
+ Raúl Gómez Muñoz & L0XXXXXXX \\
+ Blanca Rosa Ruiz Hernández & L0XXXXXXX \\
+\end{tabular}
+\par
+
+\vfill
+
+\large \today\par
+
+\end{center}
+
+\newpage
+
+\thispagestyle{empty}
+
+\mbox{}
+\vfill
+
+\newpage
+
+
+
+\pagenumbering{arabic}
+
+
+\thispagestyle{empty}
+
+{{< include _Etapa1_content.qmd >}}
