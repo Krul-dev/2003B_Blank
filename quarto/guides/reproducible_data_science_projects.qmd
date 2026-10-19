@@ -3,7 +3,7 @@ title: "Reproducible Data Science Projects"
 subtitle: "A Practical Guide"
 format:
   pdf:
-    pdf-engine: lualatex
+    pdf-engine: xelatex
     toc: true
     number-sections: true
 execute:
