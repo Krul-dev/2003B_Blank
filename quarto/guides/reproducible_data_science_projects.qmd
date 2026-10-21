@@ -63,15 +63,18 @@ A small project can begin without separate directories for reusable functions or
 ```text
 project/
 ├── README.md
-├── _quarto.yml
+├── .gitignore
+├── renv.lock
+├── renv/
+│   └── activate.R
 ├── data/
-│   └── raw/
+│   ├── raw/
+│   └── processed/
+├── notebooks/
 ├── quarto/
-│   ├── notebooks/
 │   └── reports/
 └── docs/
-    └── quarto/
-        └── reports/
+    └── reports/
 ```
 
 This example assumes a Quarto project rooted at `project/`, with `project.output-dir: docs`; Quarto generally preserves source-relative subdirectories within the output directory. The exact output location should be checked for the selected formats and Quarto version.
@@ -81,11 +84,12 @@ This example assumes a Quarto project rooted at `project/`, with `project.output
 | `README.md` | Explain the project, prerequisites, and reproduction procedure |
 | `_quarto.yml` | Configure Quarto project rendering |
 | `data/raw/` | Hold original input data, unchanged where redistribution is permitted |
-| `quarto/notebooks/` | Hold executable analytical documents |
+| `data/processed/` | Holds the processed data, that will be used in the research project |
+| `notebooks/` | Hold executable analytical documents |
 | `quarto/reports/` | Hold report source documents |
 | `docs/` | Hold generated, distributable outputs |
 
-A later project may add `data/processed/`, `src/`, `scripts/`, or a dependency lockfile. These should be introduced when they solve an actual organizational problem, not merely to imitate a large software project.
+A later project may add `src/`, `scripts/`, or a dependency lockfile. These should be introduced when they solve an actual organizational problem, not merely to imitate a large software project.
 
 ## Source files and generated artifacts
 
