@@ -1,0 +1,343 @@
+---
+title: "Reproducible Data Science Projects"
+subtitle: "Stage 1: Research Formulation and Data Preparation"
+author: "Instructor's Practical Guide"
+format:
+  pdf:
+    toc: true
+    number-sections: true
+execute:
+  echo: false
+---
+
+# Introduction
+
+This guide develops the first research stage of the framework introduced in *Reproducible Data Science Projects: An Instructor’s Practical Framework*. It is intended to be read **after** that guide. The earlier document establishes the responsibilities of the repository, computational notebooks, research reports, and scientific papers; the present document applies those principles to a specific part of an empirical Data Science investigation.
+
+The immediate audience is instructors designing and supervising research-oriented Data Science projects. This is a reference for understanding the research workflow and the documentation it should produce, **not** a student-facing assignment, a grading rubric, or a fixed schedule of classroom activities.
+
+The stage is called **Research Formulation and Data Preparation**. Its overall objective is to **establish a well-founded research question and construct a reproducible analytical dataset suitable for investigating it**. It is not yet intended to answer the research question through statistical exploration or modeling.
+
+The stage has three closely connected objectives:
+
+1. **Understand the research problem:** investigate its context and relevant literature.
+2. **Formulate the research question:** state and justify a meaningful question that can plausibly be investigated using the available information.
+3. **Prepare the analytical dataset:** inspect and organize the source data, assess and address data-quality issues, and select or construct the information required for subsequent analysis.
+
+The work is iterative. A closer inspection of available data may lead researchers to refine the question; data-quality problems may require revisiting the analytical design. The sequence below is a useful structure for documentation, not a claim that research proceeds through these activities exactly once.
+
+# Expected Outputs
+
+The stage should produce three complementary kinds of evidence:
+
+- **A research report** that explains the context, research question, data sources, important findings about the data, and the reasons behind preparation decisions.
+- **Computational notebooks** that document and execute the operations used to inspect, tidy, assess, clean, and prepare the data.
+- **An analytical dataset** that can be regenerated from identified source data by executing the documented workflow.
+
+These artifacts have different responsibilities. The report preserves the methodological *what* and *why*; the notebooks explain and execute the computational *how*; and the dataset is a material output of the process. The report should identify the supporting notebooks rather than duplicate their code or every intermediate diagnostic.
+
+# Structure of the Research Report
+
+The recommended report has **three main sections**. The third is subdivided to make the data preparation decisions transparent while keeping the report organized around the investigation rather than around filenames or computational steps.
+
+**1. Context of the Problem**
+
+**Purpose:** Establish what phenomenon is being investigated, why it matters, and what previous work contributes to understanding it.
+
+**1.1 Problem Description**
+
+Describe the problem, its practical or scientific relevance, and the population or setting of interest. Distinguish the general problem from the narrower question that the project will eventually investigate.
+
+**1.2 Literature Review**
+
+Review relevant research and other authoritative sources. The goal is not merely to assemble citations, but to establish what is known, how the problem has been studied, and which uncertainties or limitations motivate the present investigation. The depth of the review should be proportional to the project's scope.
+
+**1.3 Available Data Sources**
+
+Introduce the datasets that may support the investigation: their provenance, original purpose, coverage, and relevant documentation. This is a *high-level* description of available information. Detailed inspection of observations, variables, and coding belongs in Section 3.1.
+
+**2. Research Question**
+
+**Purpose:** Turn the broader problem into a specific, justified, and empirically investigable question.
+
+**2.1 Research Question**
+
+State the question clearly. Identify, where relevant, the population, phenomenon or outcome, comparisons, and temporal or geographic scope. A question may be refined as the available data become better understood; the report should reflect the resulting formulation and document consequential changes.
+
+**2.2 Justification and Feasibility**
+
+Explain the question's relevance in light of the context and literature. Discuss why the available data can reasonably support its investigation, including important limitations. Data availability alone does not establish that a question can be answered validly; observational units, variable definitions, coverage, and potential biases also matter.
+
+**2.3 Research Objectives (When Useful)**
+
+State subsidiary objectives if they clarify the work. They need not be introduced merely to satisfy a template.
+
+**3. Data Preparation**
+
+**Purpose:** Explain how the available source information was transformed into a documented analytical dataset suitable for the research question.
+
+**3.1 Data Inspection and Tidying**
+
+This subsection addresses **what data are available and how they are represented**.
+
+**3.1.1 Dataset Structure**
+
+Describe the original data organization, including:
+
+- Data files or tables and their relationships, when applicable.
+- The observational unit: what a row represents.
+- Number of observations and variables, with the interpretation of these counts made explicit.
+- Relevant temporal, geographic, or population coverage.
+
+If there are multiple tables with different observational units, describe them separately. Row counts may change when data are reshaped, so counts should always refer to a clearly identified representation.
+
+**3.1.2 Variable Description**
+
+Present a variable dictionary, or a focused summary with a reference to a complete dictionary when the source contains many variables. Useful fields include:
+
+| Variable | Meaning | Type | Unit / permitted values |
+|---|---|---|---|
+| `age` | Age of respondent | Quantitative, discrete | Years; nonnegative integers |
+| `education` | Educational attainment | Ordinal categorical | Categories defined by source dictionary |
+| `income` | Reported monthly income | Quantitative | Currency units; nonnegative values |
+
+*Illustrative variables only.*
+
+**Permitted values** describe what the variable is supposed to contain, based on its definition and source documentation. **Observed values** describe what is actually recorded; unexpected observed values are examined under data quality assessment. Identifiers and special codes should be described explicitly rather than forced into inappropriate statistical categories.
+
+**3.1.3 Structural Assessment and Tidying**
+
+Assess whether the representation is appropriate for the intended work. For tabular data, tidy data principles provide a useful reference: variables in columns, observations in rows, and distinct types of observational units in separate tables. Explain any necessary reshaping, splitting, or merging of structural components.
+
+**Output: a tidy dataset**, which may be identical to the original when no restructuring is necessary. Tidying concerns representation; it should not be confused with correcting invalid values or eliminating missingness.
+
+**3.2 Data Quality Assessment and Cleaning**
+
+This subsection addresses **whether the recorded information meets the quality requirements for its intended use, and what was done about identified problems**.
+
+**3.2.1 Missing Data Assessment**
+
+Quantify missing values by variable, typically using both counts and proportions. When consequential, examine missingness across groups, sources, or periods, and distinguish genuine missingness from documented special codes (for example, nonresponse or not-applicable values).
+
+| Variable | Missing observations | Missing percentage |
+|---|---:|---:|
+| `age` | 12 | 0.6% |
+| `education` | 30 | 1.5% |
+| `income` | 145 | 7.3% |
+
+*Illustrative figures for a hypothetical dataset of 2,000 observations.*
+
+A missingness table documents the *assessment*, not yet the decision about treatment. Counts alone do not establish why values are missing or whether excluding them is harmless.
+
+**3.2.2 Validity and Consistency Assessment**
+
+Identify problems relevant to the data source, such as out-of-range values, undocumented category codes, duplicate records, inconsistent units, contradictory fields, or inconsistencies across periods. Distinguish true errors from unusual but plausible observations. Not every dataset will require every check.
+
+**3.2.3 Data Cleaning Decisions**
+
+Explain the chosen response to each consequential problem and justify it. Options may include correcting values using trustworthy source information, standardizing coding, representing special codes as missing, retaining missing values, excluding selected observations, or applying an appropriate imputation procedure.
+
+A **clean dataset does not necessarily contain no missing values**. Here, *clean* means that identified quality issues have been handled according to explicit, defensible rules and that remaining limitations are documented. Some decisions, especially missing-value handling, depend on the intended analysis and may be finalized later.
+
+**3.2.4 Cleaning Results**
+
+Summarize which records or values were changed, retained, or excluded, and describe the consequences for dataset coverage and size. Report relevant checks showing that the cleaning operations produced the intended result.
+
+**Output: a clean dataset**, retaining useful valid information rather than prematurely restricting the data to a single research question whenever feasible.
+
+**3.3 Analytical Data Preparation**
+
+This subsection addresses **which information is needed for this investigation and how it will be represented for subsequent analysis**.
+
+**3.3.1 Analytical Scope and Observation Selection**
+
+Define the relevant population, units, time periods, and inclusion or exclusion criteria. Explain why particular observations or subsets are selected. Where missingness rules depend on selected variables, their final application may occur at this stage.
+
+**3.3.2 Variable Selection**
+
+Identify the variables required by the research question and explain their intended analytical roles. A concise table can connect variable choice to the investigation:
+
+| Variable | Role in the investigation | Reason for inclusion |
+|---|---|---|
+| `income` | Outcome of interest | Directly represents the measured phenomenon |
+| `age` | Explanatory or grouping variable | Supports comparisons across ages |
+| `education` | Explanatory or grouping variable | Supports comparisons across educational categories |
+
+*Illustrative roles only; explanatory variables do not necessarily have a causal interpretation.*
+
+Where relevant, explain why seemingly useful variables were excluded. Selection should be driven by the research question and methodological considerations, not only by convenience or data completeness.
+
+**3.3.3 Variable Construction and Transformation**
+
+Describe derived variables, category definitions, transformations, aggregations, and other analysis-specific changes. Explain both the definition of each new variable and the reason it is needed. *Feature engineering* is a common term in machine learning, but **variable construction and transformation** is more general for statistical research. Not every investigation requires new variables.
+
+**3.3.4 Final Analytical Dataset**
+
+Describe the resulting dataset: observational unit, number of observations and variables, retained coverage, derived variables, and known limitations. Identify where the dataset is stored and which notebook regenerates it. A concise comparison across stages may be useful:
+
+| Dataset | Observations | Variables | Purpose |
+|---|---:|---:|---|
+| Original | 15,000 | 42 | Source information |
+| Tidy | 15,000 | 38 | Appropriate tabular structure |
+| Clean | 14,850 | 38 | Documented quality treatment |
+| Analytical | 8,200 | 9 | Investigation-specific selection |
+
+*Illustrative figures only. Tidying can change row counts; cleaning need not remove observations.*
+
+**Output: an analytical dataset** suitable for the next stage of the investigation, subject to the limitations explicitly documented in the report.
+
+**4 Bibliography** Include references to the literature and other sources cited in the report. Use a consistent citation style, and ensure that all sources are properly documented. Make sure to include any relevant datasets, software packages, or tools that were used in the analysis, as well as the repository itself.
+
+# Structure of the Computational Notebooks
+
+The recommended computational architecture uses **three task-focused Quarto notebooks**. Their boundaries reflect analytical responsibilities, not report deadlines. Each notebook should follow the earlier framework's general anatomy—objective, inputs, procedure, outputs, and interpretation—and execute from a fresh R session with explicit file dependencies.
+
+## Notebook 1: Data Inspection and Tidying
+
+**Suggested filename:** `01_data_inspection.qmd`
+
+**Input:** Original source data in `data/raw/`, with source documentation as needed.
+
+**Responsibilities:** Load and inspect the source data; identify tables, observational units, variable names and types; verify structural assumptions; implement any required tidying; and check the structure of the resulting data.
+
+**Output:** A tidy dataset, for example `data/processed/tidy_data.rds`. If the source is already tidy, the notebook should establish that fact and may preserve an equivalent output without unnecessary transformation.
+
+The notebook should show *how* structural conclusions and transformations were obtained. The report should explain *why* the chosen representation is appropriate.
+
+## Notebook 2: Data Quality Assessment and Cleaning
+
+**Suggested filename:** `02_data_quality.qmd`
+
+**Input:** The tidy dataset generated by Notebook 1.
+
+**Responsibilities:** Compute missingness summaries and relevant diagnostics; detect invalid or inconsistent records; implement documented cleaning rules; and verify their effects. The notebook should make the rules executable and observable, including counts before and after consequential changes.
+
+**Output:** A clean dataset, for example `data/processed/clean_data.rds`, together with diagnostic summaries that support the report.
+
+The notebook should document precisely *which* rule was implemented; the report should explain *why* that rule is justified and what limitations remain.
+
+## Notebook 3: Analytical Data Preparation
+
+**Suggested filename:** `03_analytical_preparation.qmd`
+
+**Input:** The clean dataset generated by Notebook 2 and the analytical specifications derived from the research question.
+
+**Responsibilities:** Select relevant observations and variables; create or transform variables when needed; apply any remaining analysis-specific rules; verify the final structure; and export the analytical dataset.
+
+**Output:** An analytical dataset, for example `data/processed/analytical_data.rds`, suitable for subsequent exploratory data analysis and statistical modeling.
+
+The notebook should make selection and transformation rules explicit. The report should justify the resulting analytical design.
+
+## Notebook Dependencies and Project Layout
+
+The resulting data flow is:
+
+```{text}
+Original data
+    |
+    v
+01_data_inspection.qmd
+    |
+    v
+Tidy dataset
+    |
+    v
+02_data_quality.qmd
+    |
+    v
+Clean dataset
+    |
+    v
+03_analytical_preparation.qmd
+    |
+    v
+Analytical dataset
+```
+
+Within the minimal repository described in the preceding guide, a project might use:
+
+```{text}
+project/
+├── README.md
+├── .gitignore
+├── renv.lock
+├── renv/
+│   └── activate.R
+├── data/
+│   ├── raw/
+│   │   └── original_data.csv
+│   └── processed/
+│       ├── tidy_data.rds
+│       ├── clean_data.rds
+│       └── analytical_data.rds
+├── notebooks/
+│   ├── 01_data_inspection.qmd
+│   ├── 02_data_quality.qmd
+│   └── 03_analytical_preparation.qmd
+├── quarto/
+│   ├── _quarto.yaml
+│   └── reports/
+│       └── stage_1_report.qmd
+└── docs/
+    └── reports/
+```
+
+The filenames are examples, not additional mandatory conventions. The processed datasets are generated artifacts and need not all be committed to Git; what matters is that the repository documents how to regenerate them. The original files should remain unchanged, subject to access and redistribution constraints.
+
+# Alignment Between the Report and the Notebooks
+
+| Report component | Primary computational support | Principal evidence |
+|---|---|---|
+| Context and literature | Bibliographic and source documentation | Research motivation and existing knowledge |
+| Research question | Research design, informed by source inspection | Question, justification, feasibility |
+| 3.1 Data Inspection and Tidying | Notebook 1 | Structure, variable dictionary, tidy dataset |
+| 3.2 Data Quality Assessment and Cleaning | Notebook 2 | Quality diagnostics, decisions, clean dataset |
+| 3.3 Analytical Data Preparation | Notebook 3 | Selection and transformations, analytical dataset |
+
+The mapping is one of **primary responsibility**, not an exclusive assignment of content. A report may cite outputs from multiple notebooks, and a notebook may need to record implementation details associated with several methodological decisions.
+
+# Methodological Boundaries and Practical Qualifications
+
+## Inspection Is Not Exploratory Data Analysis
+
+**Data inspection** asks: *What data do we have, and how are they represented?* It focuses on source structure, observational units, variable meanings, coding, and basic diagnostics.
+
+**Exploratory data analysis (EDA)** asks: *What empirical patterns can we learn from these data?* It focuses on distributions, relationships, group comparisons, trends, and interpretation. The same computational tools may support both activities; the distinction lies in their purpose.
+
+This first-stage guide stops at the construction of the analytical dataset. Substantive EDA belongs primarily to a subsequent stage, even if a limited descriptive calculation is useful here to inspect or assess data quality.
+
+## Tidy, Clean, and Analytical Are Different Descriptions
+
+- **Tidy** describes a useful structural organization of tabular data.
+- **Clean** describes the result of applying explicit quality criteria and justified treatment rules; it is not an absolute guarantee of correctness.
+- **Analytical** describes a dataset prepared for a particular investigation, including relevant observations, variables, and derived measurements.
+
+These descriptions are conceptually distinct, not necessarily three different physical files in every project. A small dataset may already be tidy and adequately clean. Conversely, complex data may require several iterations or additional notebooks.
+
+## Report Structure Is Not a Rigid Execution Order
+
+The report presents a coherent account of the completed work. The computational process may be iterative: variable selection can affect missing-data treatment; unexpected data problems can motivate changes in the question; and transformations may reveal further inconsistencies. Record material decisions and dependencies without turning the report into a chronological diary.
+
+## Preserve Research Continuity
+
+A new collaborator should be able to determine what was investigated, which data were available, how the analytical dataset was produced, what choices were made, and which limitations remain. The report should be understandable without reading every line of code, while the notebooks should provide executable evidence for the report's claims.
+
+# Completion and Reproducibility Checks
+
+Before treating Stage 1 as complete, instructors should verify that:
+
+1. The research question is stated and justified in relation to the context, literature, and available data.
+2. Original data sources, observational units, variable meanings, and coverage are documented.
+3. The tidying, cleaning, and analytical selection decisions are explicit, including consequential alternatives and limitations.
+4. Each notebook identifies its inputs and outputs and runs from a fresh session without relying on objects created interactively elsewhere.
+5. The notebook dependencies are documented, and the analytical dataset can be regenerated from the original data in the prescribed order.
+6. The report's counts, tables, and methodological claims agree with the supporting computational results.
+7. The final analytical dataset is identified, its structure is described, and any unresolved limitations relevant to future analysis are recorded.
+
+Successful execution establishes important evidence of **computational reproducibility**, but it does not alone establish that the research question or preparation decisions are methodologically appropriate. Both dimensions remain essential.
+
+# Concluding Perspective
+
+Stage 1 connects **research formulation** to **data preparation**. The literature and problem context motivate the question; the question guides the construction of the analytical dataset; and the properties of the available data constrain what can responsibly be investigated.
+
+The stage therefore concludes not with an answer to the research question, but with a **documented and reproducible foundation for investigating it**: a justified question, an intelligible account of the data and methodological decisions, and an analytical dataset ready for subsequent exploratory analysis and statistical modeling.
